@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Art Gallery</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main class="gallery-shell">
+      <section class="toolbar" aria-label="Artwork controls">
+        <label for="artwork-select">SELECT SHEET</label>
+        <div class="sheet-select">
+          <button
+            id="artwork-select"
+            class="sheet-select-button"
+            type="button"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+          ></button>
+          <ul id="artwork-options" class="sheet-options" role="listbox"></ul>
+        </div>
+      </section>
+
+      <section class="viewer" aria-live="polite">
+        <div id="artwork-stage"></div>
+      </section>
+
+      <section class="artwork-meta" aria-label="Artwork details">
+        <h1 id="artwork-title"></h1>
+        <p id="artwork-description"></p>
+        <div id="artwork-tags" class="tags"></div>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
