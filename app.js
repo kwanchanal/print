@@ -1,5 +1,6 @@
 import { artworks } from "./artworks/registry.js";
 import { newSeed } from "./seed.js";
+import { composeOutput, downloadArtwork } from "./artworks/shared/output.js";
 
 const select = document.getElementById("artwork-select");
 const options = document.getElementById("artwork-options");
@@ -11,6 +12,21 @@ let currentId = "";
 const initialParams = new URLSearchParams(location.search);
 const artworkState = { collection: "", seed: initialParams.get("seed") || "original", algorithmVersion: "1" };
 let renderRequest = 0;
+let activeModule = null;
+let mountedId = "";
+let remountControls = false;
+const collectionSeeds = new Map();
+const initialized = new Set();
+let sourceArtwork = null;
+
+function presentArtwork() {
+  if (!sourceArtwork) return;
+  const svg = composeOutput(sourceArtwork.cloneNode(true), outputState);
+  svg.dataset.seed = artworkState.seed;
+  svg.dataset.collection = artworkState.collection;
+  svg.dataset.algorithmVersion = artworkState.algorithmVersion;
+  stage.replaceChildren(svg);
+}
 
 function applySeed(seed) {
   seed = seed.trim();
@@ -37,6 +53,9 @@ function updateOutputSummary() {
     outputSummary.querySelector("#output-render").textContent = `${outputState.outputWidth}×${outputState.outputHeight} · ${Math.round(outputState.renderTime)}MS`;
   }
   stage.style.aspectRatio = `${outputState.outputWidth} / ${outputState.outputHeight}`;
+  const viewer = stage.parentElement;
+  const ratio = outputState.outputWidth / outputState.outputHeight;
+  stage.style.width = `${Math.max(1, Math.min(520, viewer.clientWidth - 48, (viewer.clientHeight - 48) * ratio))}px`;
 }
 
 function updateInkCount(svg) {
@@ -50,7 +69,7 @@ function setOutputRatio(ratio) {
   calculateOutputDimensions(ratio);
   document.querySelectorAll(".ratio-button").forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.ratio === ratio)));
   updateOutputSummary();
-  if (currentId) loadArtwork(currentId);
+  presentArtwork();
 }
 
 function setMeta(meta) {
@@ -83,7 +102,6 @@ function setSelected(id) {
 async function loadArtwork(id) {
   const entry = artworks.find((artwork) => artwork.id === id) || artworks[0];
   const request = ++renderRequest;
-  const seed = artworkState.seed;
 
   try {
     const [{ meta }, artworkModule] = await Promise.all([
@@ -91,11 +109,36 @@ async function loadArtwork(id) {
       import(entry.artworkPath)
     ]);
     if (request !== renderRequest) return;
+    if (artworkState.collection && artworkState.collection !== entry.id) collectionSeeds.set(artworkState.collection, artworkState.seed);
+    if (artworkState.collection !== entry.id) {
+      artworkState.seed = collectionSeeds.get(entry.id) || (!artworkState.collection ? artworkState.seed : "original");
+    }
+    if (!initialized.has(entry.id)) {
+      artworkModule.initialize?.(entry.id === location.hash.slice(1) ? initialParams : new URLSearchParams());
+      initialized.add(entry.id);
+    }
+    if (artworkModule.capabilities?.presets && artworkState.seed === "original") artworkState.seed = newSeed();
+    artworkState.seed = artworkModule.resolveSeed?.(artworkState.seed) || artworkState.seed;
+    const seed = artworkState.seed;
+    activeModule = artworkModule;
     artworkState.collection = entry.id;
     artworkState.algorithmVersion = artworkModule.algorithmVersion || "1";
-    const presetSelect = document.getElementById("seed-preset");
-    presetSelect.replaceChildren(new Option("Custom", ""), ...(artworkModule.presets || []).map(preset => new Option(preset.label, preset.seed)));
-    presetSelect.value = (artworkModule.presets || []).some(preset => preset.seed === seed) ? seed : "";
+    collectionPresets = artworkModule.presets || [];
+    syncPresetMenu();
+    const seedEnabled = artworkModule.seedEnabled?.() ?? true;
+    const seedInput = document.getElementById("seed-input");
+    seedInput.value = seed;
+    seedInput.disabled = !seedEnabled;
+    document.querySelectorAll(".seed-actions button").forEach(button => { button.disabled = !seedEnabled; });
+    if (mountedId !== entry.id || remountControls) {
+      const controls = document.getElementById("collection-controls");
+      controls.replaceChildren();
+      artworkModule.mountControls?.(controls, {
+        refresh: () => { if (currentId === entry.id) loadArtwork(entry.id); },
+        setSeed: value => { if (currentId === entry.id) applySeed(value); }
+      });
+      mountedId = entry.id; remountControls = false;
+    }
 
     setMeta(meta);
     setSelected(entry.id);
@@ -104,45 +147,104 @@ async function loadArtwork(id) {
     stage.replaceChildren();
     artworkModule.render(stage, { ...artworkState, designSize: artworkModule.designSize });
     const svg = stage.querySelector("svg");
+    sourceArtwork = svg?.cloneNode(true) || null;
     if (svg) {
-      svg.dataset.seed = seed;
-      svg.dataset.collection = entry.id;
-      svg.dataset.algorithmVersion = artworkState.algorithmVersion;
-      svg.setAttribute("width", outputState.outputWidth);
-      svg.setAttribute("height", outputState.outputHeight);
-      svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
-      svg.style.transform = `scale(${outputState.outputScale})`;
-      svg.style.transformOrigin = "center";
       updateInkCount(svg);
+      presentArtwork();
     }
+    document.querySelectorAll("[data-download]").forEach(button => {
+      button.disabled = !svg;
+      button.hidden = !(artworkModule.capabilities?.exports || ["svg", "png"]).includes(button.dataset.download);
+    });
     outputState.renderTime = performance.now() - startedAt;
     updateOutputSummary();
     const url = new URL(location.href);
+    url.search = "";
     url.hash = entry.id;
     url.searchParams.set("seed", seed);
     url.searchParams.set("version", artworkState.algorithmVersion);
+    artworkModule.writeURL?.(url);
     window.history.replaceState(null, "", url);
   } catch (error) {
+    if (request !== renderRequest) return;
+    sourceArtwork = null;
+    document.querySelectorAll("[data-download]").forEach(button => { button.disabled = true; });
     stage.innerHTML = `<div class="error">Could not load artwork: ${entry.label}</div>`;
     console.error(error);
   }
 }
 
+let collectionPresets = [{ seed: "original", label: "Original" }];
+
+function syncPresetMenu() {
+  const button = document.getElementById("preset-button");
+  const list = document.getElementById("preset-options");
+  const selected = collectionPresets.find(preset => preset.seed === artworkState.seed);
+  const specialPresets = activeModule?.capabilities?.presets;
+  button.textContent = specialPresets ? activeModule.getPreset() : selected?.label || "Custom";
+  const presetChoices = specialPresets ? specialPresets.map(label => ({ seed: label, label })) : [{ seed: "", label: "Custom" }, ...collectionPresets];
+  list.replaceChildren(...presetChoices.map((option) => {
+    const item = document.createElement("li");
+    item.role = "option";
+    item.tabIndex = -1;
+    item.textContent = option.label;
+    item.setAttribute("aria-selected", String(specialPresets ? option.label === activeModule.getPreset() : option.seed === (selected?.seed || "")));
+    const choose = () => {
+      button.setAttribute("aria-expanded", "false");
+      list.dataset.open = "false";
+      button.focus();
+      remountControls = Boolean(specialPresets);
+      applySeed(specialPresets ? activeModule.choosePreset(option.label) : option.seed || newSeed());
+    };
+    item.addEventListener("click", choose);
+    item.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") { event.preventDefault(); choose(); }
+    });
+    return item;
+  }));
+}
+
 function init() {
+  new ResizeObserver(updateOutputSummary).observe(stage.parentElement);
   const seedForm = document.createElement("form");
   seedForm.className = "seed-controls";
-  seedForm.innerHTML = '<label for="seed-input">SEED</label><input id="seed-input" required maxlength="200" autocomplete="off"><div class="seed-actions"><button type="submit">APPLY</button><button type="button" id="seed-random">RANDOM</button></div><label for="seed-preset">PRESET</label><select id="seed-preset"><option value="original">Original</option></select>';
+  seedForm.innerHTML = '<label for="seed-input">SEED</label><input id="seed-input" required maxlength="200" autocomplete="off"><div class="seed-actions"><button type="submit">APPLY</button><button type="button" id="seed-random">RANDOM</button></div><label for="preset-button">PRESET</label>';
   document.querySelector(".toolbar").append(seedForm);
+  const presetMenu = document.createElement("div");
+  presetMenu.className = "sheet-select";
+  presetMenu.innerHTML = '<button id="preset-button" class="sheet-select-button" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="preset-options">Original</button><ul id="preset-options" class="sheet-options" role="listbox" aria-label="Preset"></ul>';
+  seedForm.append(presetMenu);
+  const presetButton = document.getElementById("preset-button");
+  const presetOptions = document.getElementById("preset-options");
+  const closePreset = () => { presetButton.setAttribute("aria-expanded", "false"); presetOptions.dataset.open = "false"; };
+  presetButton.addEventListener("click", () => {
+    const open = presetButton.getAttribute("aria-expanded") !== "true";
+    presetButton.setAttribute("aria-expanded", String(open));
+    presetOptions.dataset.open = String(open);
+    setOpen(false);
+  });
+  presetMenu.addEventListener("keydown", event => {
+    if (event.key === "Escape") { closePreset(); presetButton.focus(); }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      presetButton.setAttribute("aria-expanded", "true"); presetOptions.dataset.open = "true";
+      const items = Array.from(presetOptions.children);
+      const index = items.indexOf(document.activeElement);
+      items[(index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+    }
+  });
+  document.addEventListener("click", event => { if (!presetMenu.contains(event.target)) closePreset(); });
+  presetMenu.addEventListener("focusout", event => { if (!presetMenu.contains(event.relatedTarget)) closePreset(); });
+  syncPresetMenu();
   document.getElementById("seed-input").value = artworkState.seed;
   seedForm.addEventListener("submit", event => { event.preventDefault(); applySeed(document.getElementById("seed-input").value); });
   document.getElementById("seed-random").addEventListener("click", () => applySeed(newSeed()));
-  document.getElementById("seed-preset").addEventListener("change", event => {
-    applySeed(event.target.value || newSeed());
-  });
   const canvasPanel = document.getElementById("canvas-panel");
+  const collectionControls = document.createElement("div");
+  collectionControls.id = "collection-controls";
+  canvasPanel.closest(".control-group").after(collectionControls);
   const originalToolbar = document.querySelector(".toolbar");
   const canvasGroup = canvasPanel?.closest(".control-group");
-  const outputReadout = document.querySelector(".output-readout");
   const frameControls = document.querySelector(".frame-controls");
   if (canvasPanel && originalToolbar && canvasGroup) {
     originalToolbar.style.display = "block";
@@ -156,6 +258,7 @@ function init() {
       const content = document.getElementById(toggle.getAttribute("aria-controls"));
       const isOpen = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!isOpen));
+      toggle.querySelector("span").textContent = `${isOpen ? "+" : "-"} CANVAS`;
       content.hidden = isOpen;
     });
   });
@@ -186,39 +289,16 @@ function init() {
     outputState.outputScale = outputState.outputSize / 45;
     calculateOutputDimensions(outputState.selectedRatio);
     updateOutputSummary();
-    const svg = stage.querySelector("svg");
-    if (svg) svg.style.transform = `scale(${outputState.outputScale})`;
+    presentArtwork();
   });
 
-  document.getElementById("randomize-button").addEventListener("click", () => {
-    applySeed(newSeed());
-  });
-  document.getElementById("reset-offset").addEventListener("click", () => loadArtwork(currentId));
   document.querySelectorAll("[data-download]").forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const svg = stage.querySelector("svg");
       if (!svg) return;
       const filename = `${svg.dataset.collection}-${svg.dataset.seed.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0,100)}-v${svg.dataset.algorithmVersion}-${outputState.selectedRatio.replace(":", "x")}`;
-      const source = new Blob([new XMLSerializer().serializeToString(svg)], { type: "image/svg+xml" });
-      const url = URL.createObjectURL(source);
-      if (button.dataset.download === "png") {
-        const image = new Image();
-        image.onload = () => {
-          const canvas = document.createElement("canvas");
-          canvas.width = outputState.outputWidth;
-          canvas.height = outputState.outputHeight;
-          canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob((blob) => { const pngUrl = URL.createObjectURL(blob); const pngLink = document.createElement("a"); pngLink.href = pngUrl; pngLink.download = `${filename}.png`; pngLink.click(); URL.revokeObjectURL(pngUrl); }, "image/png");
-          URL.revokeObjectURL(url);
-        };
-        image.src = url;
-        return;
-      }
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${filename}.svg`;
-      link.click();
-      URL.revokeObjectURL(url);
+      try { await downloadArtwork(svg, button.dataset.download, filename); }
+      catch (error) { console.error(error); alert("Could not export this image. Please try again."); }
     });
   });
 
