@@ -1,3 +1,5 @@
+import { seedPositions } from "./seeds.js";
+export { algorithmVersion, designSize, presets } from "./seeds.js";
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 function svgEl(tag, attrs = {}, children = []) {
@@ -40,7 +42,7 @@ function grainFilter(id, seed, frequency, density = 0.42) {
   ]);
 }
 
-function makeArt() {
+function makeArt(seed) {
   const svg = svgEl("svg", {
     class: "poster",
     viewBox: "0 0 600 600",
@@ -145,8 +147,8 @@ function makeArt() {
     ellipse(300, 500, 7, 7, { fill: "#efe0a6", opacity: ".7" })
   );
 
-  squash.append(makeSeedPocket(256, 364, 1));
-  squash.append(makeSeedPocket(344, 364, -1));
+  squash.append(makeSeedPocket(256, 364, 1, seed));
+  squash.append(makeSeedPocket(344, 364, -1, seed));
 
   squash.append(
     path("M205 98 C203 176 207 244 188 303", {
@@ -170,7 +172,7 @@ function makeArt() {
   return svg;
 }
 
-function makeSeedPocket(cx, cy, flip) {
+function makeSeedPocket(cx, cy, flip, seed) {
   const group = svgEl("g", { transform: `translate(${cx} ${cy}) scale(${flip} 1)` });
   group.append(
     path("M0 -74 C41 -74 51 -34 42 25 C35 67 18 91 -20 83 C-45 78 -56 49 -52 8 C-47 -45 -32 -74 0 -74 Z", {
@@ -184,17 +186,19 @@ function makeSeedPocket(cx, cy, flip) {
     path("M-58 -79 H55 V92 H-58 Z", { fill: "url(#fine-print)", opacity: ".48" })
   );
 
-  [
-    [-22, -43, -14], [1, -49, -7], [-29, -22, -9], [-5, -25, -6],
-    [-32, -2, -8], [-8, -4, -5], [-31, 19, -7], [-7, 18, -5],
-    [-24, 41, -9], [0, 39, -6]
-  ].forEach(([x, y, rotate]) => {
-    group.append(ellipse(x, y, 13, 7, {
+  const clipId = `seed-pocket-${flip === 1 ? "left" : "right"}`;
+  const seedLayer = svgEl("g", { "clip-path": `url(#${clipId})` });
+  group.append(svgEl("defs", {}, [svgEl("clipPath", { id: clipId }, [
+    path("M0 -74 C41 -74 51 -34 42 25 C35 67 18 91 -20 83 C-45 78 -56 49 -52 8 C-47 -45 -32 -74 0 -74 Z")
+  ])]));
+  seedPositions(seed, flip).forEach(([x, y, rotate]) => {
+    seedLayer.append(ellipse(x, y, 13, 7, {
       fill: "#ffedae",
       opacity: ".96",
       transform: `rotate(${rotate} ${x} ${y})`
     }));
   });
+  group.append(seedLayer);
 
   return group;
 }
@@ -224,6 +228,6 @@ function makeDust() {
   return dust;
 }
 
-export function render(container) {
-  container.replaceChildren(makeArt());
+export function render(container, { seed = "original" } = {}) {
+  container.replaceChildren(makeArt(seed));
 }
