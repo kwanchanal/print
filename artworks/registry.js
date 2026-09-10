@@ -6,6 +6,12 @@ export const artworks = [
     metaPath: "./artworks/ascii/meta.js"
   },
   {
+    id: "halftone-generator",
+    label: "Halftone Generator",
+    artworkPath: "./artworks/halftone/artwork.js",
+    metaPath: "./artworks/halftone/meta.js"
+  },
+  {
     id: "butternut",
     label: "Butternut",
     artworkPath: "./artworks/butternut/artwork.js",

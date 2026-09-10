@@ -40,6 +40,39 @@ Then open:
 http://127.0.0.1:8765/
 ```
 
+## Halftone Generator
+
+เลือก `Halftone Generator` ใน Select Collection โดย ASCII Generator
+ยังเป็น collection เริ่มต้นของเว็บ
+
+- `Upload`: เลือกภาพจากเครื่อง Seed เป็น SHA-256 ของไฟล์
+  ช่อง Seed และปุ่ม Apply/Random ปิดใช้งาน ภาพไม่ถูกส่งขึ้นเซิร์ฟเวอร์
+  เปิดหน้าใหม่ต้องเลือกไฟล์เดิมอีกครั้ง
+- `Random`: สร้างภาพกราฟิกสีจาก Seed แล้วทำ dithering
+  ใช้ Apply/Enter หรือ Random ได้เหมือน ASCII Generator
+- Dithering: Floyd-Steinberg, Atkinson, Jarvis-Judice-Ninke,
+  Two-Row Sierra, Ordered 2x2, Ordered 4x4 และ Ordered 8x8
+- Palette: Custom สองสี, Black & White, CMYK, Warm Sunset,
+  Retro Pop และ Web Safe 8
+- Dither Scale 1–12, Brightness -100–100 และ Contrast 0–1
+  โดย Contrast เริ่มต้น 0.5 และ 1 คือคง contrast ของต้นฉบับ
+- PNG/SVG ใช้ Frame/Zoom เดียวกับ preview และชื่อไฟล์มี Seed
+  SVG รวมบล็อกสีที่ต่อกันเป็น vector paths โดยไม่ฝังภาพ bitmap
+
+Renderer อยู่ใน `artworks/halftone/artwork.js`, ตัวคำนวณที่ไม่อาศัย DOM
+อยู่ใน `artworks/halftone/engine.js` และระบบ Upload/Random ที่นำกลับมาใช้ได้
+อยู่ใน `artworks/shared/image-source.js`
+ภาพทำงานบนพื้นที่ออกแบบ 600x600 และรักษาอัตราส่วนต้นฉบับ
+ความละเอียด dithering จึงไม่เปลี่ยนตามขนาดหน้าจอหรือ Frame/Zoom
+ใช้ error diffusion แบบสลับทิศทางแต่ละแถวและกระจาย error ไปยังบล็อกเต็ม
+ภาพโปร่งใสจะผสมกับสีขาวก่อนแปลงสี และเก็บสีขาวใน SVG/PNG เหมือนกัน
+Seed กับค่าปรับภาพถูกเก็บใน URL แต่ URL ไม่บรรจุไฟล์ Upload
+
+ทดสอบด้วย `node --test tests/ascii.test.mjs tests/halftone.test.mjs`
+ครอบคลุมการสร้างซ้ำ, Bayer matrices, ตัวอย่างลายที่ทราบผล,
+7 algorithms x 6 palettes, ขอบบล็อก, ความโปร่งใส และการปรับแสง
+ใช้ `tests/upload-fixture.svg` สำหรับทดสอบ Upload ใน browser
+
 ## ASCII Generator
 
 เลือก `ASCII Generator` ใน Select Collection แล้วเลือก Preset:
