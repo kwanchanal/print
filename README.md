@@ -40,6 +40,55 @@ Then open:
 http://127.0.0.1:8765/
 ```
 
+## Pudding
+
+Select `Pudding` for a layered SVG illustration based on the pudding reference.
+The 735 x 994 design separates the background, table, napkin, cream folds,
+sprinkles, cherry stem and fruit, custard, caramel, and silver coupe into named
+SVG groups. Fine ink grain, halftone dots, and paper mottling are self-contained
+SVG effects with no external image assets.
+
+`Original` preserves the reference cherry placement and adds 30 rainbow
+sprinkles. Other seeds move the cherry and redistribute the sprinkles within
+the cream, with spacing and cherry clearance. The remaining illustration and
+texture stay fixed. Seed, frame, zoom, and SVG/PNG export use the existing controls.
+Frame resizes the wall and table to fill the canvas without white margins,
+including when Size is reduced. The pudding and napkin retain their proportions.
+Collections may export `layoutOutput(svg, { outputWidth, outputHeight, outputScale })`
+to adapt a cloned SVG for the frame and handle zoom in their own design coordinates.
+
+Run `node --test tests/pudding.test.mjs` to check reproducibility and topping
+placement across 201 seeds.
+
+### Animation
+
+Pudding includes an `ANIMATION` section with Animate Variations, Play/Pause,
+and a 2-20 frame duration slider (default 4.5 seconds). Each frame holds for
+half a second, with a direct cut to the next variation; the sequence loops.
+The first frame uses the selected seed. Subsequent seeds are derived from
+that seed and the frame index, so longer durations preserve the sequence's prefix.
+Turning animation off restores the original still. SVG/PNG downloads capture
+the visible frame and include its effective seed in the SVG metadata.
+
+`DOWNLOAD GIF` renders the entire sequence using the current Frame and Size,
+starting at frame one even if the preview is paused elsewhere. Export runs
+locally using a worker and vendored gifenc 1.0.3, with progress and cancellation.
+A fixed palette keeps static ink pixels stable across frames. GIF uses up to
+256 colors, so its grain may differ slightly from the SVG/PNG.
+Changing seed, collection, duration, Frame, or Size cancels an active export.
+Playback pauses in background tabs. Animation settings are session-only;
+reloading starts with animation enabled and the default duration.
+
+Run `node --test tests/animation.test.mjs` for sequence and duration checks.
+The browser regression script is `tests/browser/animation.cjs`. With Playwright
+and Chromium installed, run `node tests/browser/animation.cjs` against the local
+server at port 8790. Set `PRINT_URL` to use another server and `PLAYWRIGHT_MODULE`
+to use an existing Playwright installation. It verifies decoded GIF frames,
+timing, looping, pixel stability, repeatability, playback, cancellation, error
+recovery, frame/size, and mobile layout; artifacts go to a temporary directory.
+Other collections may opt in by exporting `animation = true`; their renderer
+must support deterministic variations and produce an opaque SVG for GIF export.
+
 ## Halftone Generator
 
 เลือก `Halftone Generator` ใน Select Collection โดย ASCII Generator

@@ -1,6 +1,7 @@
 import { artworks } from "./artworks/registry.js";
 import { newSeed } from "./seed.js";
 import { composeOutput, downloadArtwork } from "./artworks/shared/output.js";
+import { mountAnimation } from "./artworks/shared/animation.js";
 
 const select = document.getElementById("artwork-select");
 const options = document.getElementById("artwork-options");
@@ -18,11 +19,13 @@ let remountControls = false;
 const collectionSeeds = new Map();
 const initialized = new Set();
 let sourceArtwork = null;
+let previewArtwork = null;
+let animationControls = null;
 
 function presentArtwork() {
   if (!sourceArtwork) return;
-  const svg = composeOutput(sourceArtwork.cloneNode(true), outputState);
-  svg.dataset.seed = artworkState.seed;
+  const svg = composeOutput((previewArtwork || sourceArtwork).cloneNode(true), outputState, activeModule?.layoutOutput);
+  svg.dataset.seed = previewArtwork?.dataset.seed || artworkState.seed;
   svg.dataset.collection = artworkState.collection;
   svg.dataset.algorithmVersion = artworkState.algorithmVersion;
   stage.replaceChildren(svg);
@@ -67,6 +70,7 @@ function updateInkCount(svg) {
 function setOutputRatio(ratio) {
   outputState.selectedRatio = ratio;
   calculateOutputDimensions(ratio);
+  animationControls?.updateOutput(outputState);
   document.querySelectorAll(".ratio-button").forEach((item) => item.setAttribute("aria-pressed", String(item.dataset.ratio === ratio)));
   updateOutputSummary();
   presentArtwork();
@@ -100,6 +104,7 @@ function setSelected(id) {
 }
 
 async function loadArtwork(id) {
+  animationControls?.suspend();
   const entry = artworks.find((artwork) => artwork.id === id) || artworks[0];
   const request = ++renderRequest;
 
@@ -158,6 +163,7 @@ async function loadArtwork(id) {
     });
     outputState.renderTime = performance.now() - startedAt;
     updateOutputSummary();
+    animationControls?.setContext({ module: artworkModule, state: { ...artworkState }, output: { ...outputState } });
     const url = new URL(location.href);
     url.search = "";
     url.hash = entry.id;
@@ -243,6 +249,12 @@ function init() {
   const collectionControls = document.createElement("div");
   collectionControls.id = "collection-controls";
   canvasPanel.closest(".control-group").after(collectionControls);
+  const animationContainer = document.createElement("div");
+  collectionControls.after(animationContainer);
+  animationControls = mountAnimation(animationContainer, svg => {
+    previewArtwork = svg;
+    presentArtwork();
+  });
   const originalToolbar = document.querySelector(".toolbar");
   const canvasGroup = canvasPanel?.closest(".control-group");
   const frameControls = document.querySelector(".frame-controls");
@@ -288,6 +300,7 @@ function init() {
     outputState.outputSize = Number(event.target.value);
     outputState.outputScale = outputState.outputSize / 45;
     calculateOutputDimensions(outputState.selectedRatio);
+    animationControls?.updateOutput(outputState);
     updateOutputSummary();
     presentArtwork();
   });

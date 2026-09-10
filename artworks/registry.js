@@ -12,6 +12,12 @@ export const artworks = [
     metaPath: "./artworks/halftone/meta.js"
   },
   {
+    id: "pudding",
+    label: "Pudding",
+    artworkPath: "./artworks/pudding/artwork.js",
+    metaPath: "./artworks/pudding/meta.js"
+  },
+  {
     id: "butternut",
     label: "Butternut",
     artworkPath: "./artworks/butternut/artwork.js",

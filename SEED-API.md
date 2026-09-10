@@ -13,5 +13,9 @@ the original seed placement. Its texture is intentionally unchanged.
 
 The menu accepts text seeds, Apply/Enter, Random and collection presets.
 URLs store seed and version with the collection in the hash. SVG and PNG
-filenames include seed and version. Animation/video export support remains
-outside this change.
+filenames include seed and version. Pudding supports one-second seeded
+animation frames and GIF export through the optional `animation = true` export.
+Frame zero uses the selected seed; subsequent frames use
+`JSON.stringify(["animation", 1, seed, frameIndex])`. Duration is 2-20 seconds.
+GIF export uses the current output layout and loops forever. Video export
+remains unsupported.

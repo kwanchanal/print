@@ -57,5 +57,5 @@ export function section(name) {
   const body = document.createElement("div");
   body.className = "collection-fields";
   root.append(summary, body);
-  return { root, body };
+  return { root, summary, body };
 }
