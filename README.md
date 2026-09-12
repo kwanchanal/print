@@ -116,7 +116,8 @@ cancellation, unsupported encoding). Run with the same Playwright setup above.
 `Fruit Roll` is a close-cropped SVG sponge-roll cross-section in natural golden,
 vanilla, kiwi-green, coral, and peach colors. Named groups separate the sponge,
 cream, curl, five fruit pieces, fibers, seeds, and printed grain. This collection
-does not include a RISO color variant.
+also includes a `RISO` style using the same geometry, seeded fruit positions,
+animation, and output layout with flat spot colors and mustard paper grain.
 
 Seed changes only fruit translations. Fruit types, count, sizes, angles, and
 texture stay fixed. Bounded placement checks keep fruit inside the cream and

@@ -30,6 +30,12 @@ export const artworks = [
     metaPath: "./artworks/fruit-roll/meta.js"
   },
   {
+    id: "fruit-roll-riso",
+    label: "FRUIT ROLL - RISO",
+    artworkPath: "./artworks/fruit-roll-riso/artwork.js",
+    metaPath: "./artworks/fruit-roll-riso/meta.js"
+  },
+  {
     id: "butternut",
     label: "Butternut",
     artworkPath: "./artworks/butternut/artwork.js",

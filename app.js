@@ -22,7 +22,7 @@ const initialized = new Set();
 let sourceArtwork = null;
 let previewArtwork = null;
 let animationControls = null;
-let puddingStyle = location.hash.slice(1) === "pudding-riso" || initialParams.get("style") === "riso" ? "riso" : "standard";
+let artworkStyle = ["pudding-riso", "fruit-roll-riso"].includes(location.hash.slice(1)) || initialParams.get("style") === "riso" ? "riso" : "standard";
 let styleControls = null;
 
 function presentArtwork() {
@@ -43,6 +43,19 @@ function applySeed(seed) {
 }
 const outputState = { selectedRatio: "3:4", outputWidth: 480, outputHeight: 640, outputSize: 45, outputScale: 1, inkCount: 0, renderTime: 0 };
 const ratioValues = ["9:16", "3:4", "4:5", "1:1", "5:4", "4:3", "3:2", "16:9"];
+
+function syncCanvasSize(collectionId, previousCollection = "") {
+  const control = document.getElementById("output-size-control");
+  const value = document.getElementById("output-size-value");
+  if (!control) return;
+  const minimum = collectionId === "fruit-roll" ? 75 : 10;
+  if (collectionId === "pudding" && previousCollection === "fruit-roll") outputState.outputSize = 45;
+  if (outputState.outputSize < minimum) outputState.outputSize = minimum;
+  control.min = String(minimum);
+  control.value = String(outputState.outputSize);
+  if (value) value.textContent = `${outputState.outputSize}%`;
+  outputState.outputScale = outputState.outputSize / 45;
+}
 
 function calculateOutputDimensions(ratio) {
   const [width, height] = ratio.split(":").map(Number);
@@ -107,35 +120,38 @@ function setSelected(id) {
 }
 
 function getArtworkEntry(id) {
-  const collectionId = id === "pudding-riso" ? "pudding" : id;
-  if (collectionId === "pudding" && puddingStyle === "riso") return artworks.find(artwork => artwork.id === "pudding-riso");
+  const collectionId = { "pudding-riso": "pudding", "fruit-roll-riso": "fruit-roll" }[id] || id;
+  if (artworkStyle === "riso") {
+    const risoId = { pudding: "pudding-riso", "fruit-roll": "fruit-roll-riso" }[collectionId];
+    if (risoId) return artworks.find(artwork => artwork.id === risoId);
+  }
   return artworks.find(artwork => artwork.id === collectionId) || artworks[0];
 }
 
 function syncStyleControls() {
   if (!styleControls) return;
-  const visible = currentId === "pudding";
+  const visible = ["pudding", "fruit-roll"].includes(currentId);
   styleControls.hidden = !visible;
   if (!visible) return;
   const toggle = styleControls.querySelector(".style-toggle");
   const panel = styleControls.querySelector(".style-panel");
   const checkbox = styleControls.querySelector(".style-checkbox");
-  checkbox.checked = puddingStyle === "riso";
+  checkbox.checked = artworkStyle === "riso";
   panel.hidden = !checkbox.checked;
   toggle.setAttribute("aria-expanded", String(checkbox.checked));
   toggle.querySelector("span").textContent = `${checkbox.checked ? "-" : "+"} STYLE`;
 }
 
-function setPuddingStyle(style) {
-  puddingStyle = style;
+function setArtworkStyle(style) {
+  artworkStyle = style;
   syncStyleControls();
-  loadArtwork("pudding");
+  loadArtwork(currentId);
 }
 
 async function loadArtwork(id) {
   animationControls?.suspend();
   const entry = getArtworkEntry(id);
-  const collectionId = entry.id === "pudding-riso" ? "pudding" : entry.id;
+  const collectionId = { "pudding-riso": "pudding", "fruit-roll-riso": "fruit-roll" }[entry.id] || entry.id;
   const request = ++renderRequest;
 
   try {
@@ -155,6 +171,7 @@ async function loadArtwork(id) {
     if (artworkModule.capabilities?.presets && artworkState.seed === "original") artworkState.seed = newSeed();
     artworkState.seed = artworkModule.resolveSeed?.(artworkState.seed) || artworkState.seed;
     const seed = artworkState.seed;
+    const previousCollection = artworkState.collection;
     activeModule = artworkModule;
     artworkState.collection = collectionId;
     artworkState.algorithmVersion = artworkModule.algorithmVersion || "1";
@@ -169,8 +186,8 @@ async function loadArtwork(id) {
       const controls = document.getElementById("collection-controls");
       controls.replaceChildren();
       artworkModule.mountControls?.(controls, {
-        refresh: () => { if (currentId === collectionId) loadArtwork(collectionId); },
-        setSeed: value => { if (currentId === collectionId) applySeed(value); }
+        refresh: () => { if (currentId === entry.id) loadArtwork(entry.id); },
+        setSeed: value => { if (currentId === entry.id) applySeed(value); }
       });
       mountedId = entry.id; remountControls = false;
     }
@@ -178,6 +195,7 @@ async function loadArtwork(id) {
     setMeta(meta);
     setSelected(collectionId);
     syncStyleControls();
+    syncCanvasSize(collectionId, previousCollection);
     const startedAt = performance.now();
     calculateOutputDimensions(outputState.selectedRatio);
     stage.replaceChildren();
@@ -200,7 +218,7 @@ async function loadArtwork(id) {
     url.hash = collectionId;
     url.searchParams.set("seed", seed);
     url.searchParams.set("version", artworkState.algorithmVersion);
-    if (collectionId === "pudding" && puddingStyle === "riso") url.searchParams.set("style", "riso");
+    if (["pudding", "fruit-roll"].includes(collectionId) && artworkStyle === "riso") url.searchParams.set("style", "riso");
     artworkModule.writeURL?.(url);
     window.history.replaceState(null, "", url);
   } catch (error) {
@@ -287,17 +305,15 @@ function init() {
   styleControls.innerHTML = '<button class="section-toggle style-toggle" type="button" aria-expanded="false" aria-controls="style-panel"><span>+ STYLE</span><input class="style-checkbox" type="checkbox" aria-label="Use RISO style"></button><div id="style-panel" class="section-content style-panel" hidden></div>';
   collectionControls.after(styleControls);
   const stylePanel = styleControls.querySelector(".style-panel");
-  stylePanel.append(
-    dropdown("Style", [{ value: "riso", label: "RISO" }], "riso", () => setPuddingStyle("riso"))
-  );
+  stylePanel.append(dropdown("Style", [{ value: "riso", label: "RISO" }], "riso", () => setArtworkStyle("riso")));
   const styleToggle = styleControls.querySelector(".style-toggle");
   const styleCheckbox = styleControls.querySelector(".style-checkbox");
   styleToggle.addEventListener("click", event => {
     if (event.target === styleCheckbox) return;
     styleCheckbox.checked = !styleCheckbox.checked;
-    setPuddingStyle(styleCheckbox.checked ? "riso" : "standard");
+    setArtworkStyle(styleCheckbox.checked ? "riso" : "standard");
   });
-  styleCheckbox.addEventListener("change", () => setPuddingStyle(styleCheckbox.checked ? "riso" : "standard"));
+  styleCheckbox.addEventListener("change", () => setArtworkStyle(styleCheckbox.checked ? "riso" : "standard"));
   syncStyleControls();
   const animationContainer = document.createElement("div");
   collectionControls.after(animationContainer);
@@ -316,11 +332,12 @@ function init() {
 
   document.querySelectorAll(".section-toggle").forEach((toggle) => {
     toggle.addEventListener("click", (event) => {
-      if (event.target.classList.contains("square-check")) return;
+      if (toggle === styleControls?.querySelector(".style-toggle") || event.target.classList.contains("square-check")) return;
       const content = document.getElementById(toggle.getAttribute("aria-controls"));
       const isOpen = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!isOpen));
-      toggle.querySelector("span").textContent = `${isOpen ? "+" : "-"} CANVAS`;
+      const label = toggle.querySelector("span").textContent.replace(/^[+-]\s*/, "");
+      toggle.querySelector("span").textContent = `${isOpen ? "+" : "-"} ${label}`;
       content.hidden = isOpen;
     });
   });
@@ -344,11 +361,12 @@ function init() {
 
   const sizeControl = document.createElement("label");
   sizeControl.className = "size-control";
-  sizeControl.innerHTML = `SIZE <input id="output-size-control" type="range" min="10" max="140" value="45" />`;
+  sizeControl.innerHTML = `<span>SIZE <output id="output-size-value" for="output-size-control">45%</output></span><input id="output-size-control" type="range" min="10" max="140" value="45" />`;
   document.getElementById("canvas-panel").prepend(sizeControl);
   sizeControl.querySelector("input").addEventListener("input", (event) => {
     outputState.outputSize = Number(event.target.value);
     outputState.outputScale = outputState.outputSize / 45;
+    sizeControl.querySelector("#output-size-value").textContent = `${outputState.outputSize}%`;
     calculateOutputDimensions(outputState.selectedRatio);
     animationControls?.updateOutput(outputState);
     updateOutputSummary();
@@ -366,7 +384,7 @@ function init() {
   });
 
   options.replaceChildren(
-    ...artworks.filter(entry => entry.id !== "pudding-riso").map((entry) => {
+    ...artworks.filter(entry => !["pudding-riso", "fruit-roll-riso"].includes(entry.id)).map((entry) => {
       const option = document.createElement("li");
       option.dataset.value = entry.id;
       option.role = "option";
@@ -380,7 +398,7 @@ function init() {
     })
   );
 
-  const hashId = window.location.hash.replace("#", "") === "pudding-riso" ? "pudding" : window.location.hash.replace("#", "");
+  const hashId = { "pudding-riso": "pudding", "fruit-roll-riso": "fruit-roll" }[window.location.hash.replace("#", "")] || window.location.hash.replace("#", "");
   const firstId = artworks.some((entry) => entry.id === hashId) ? hashId : artworks[0].id;
   setSelected(firstId);
   select.addEventListener("click", () => {
