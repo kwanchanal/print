@@ -1,5 +1,5 @@
 import { createRandom } from "../../seed.js";
-import { toppings } from "./seeds.js";
+import { toppings, cherryStem } from "./seeds.js";
 export { algorithmVersion, designSize, presets } from "./seeds.js";
 export const animation = true;
 
@@ -76,13 +76,14 @@ function makeArt(seed) {
     ], { "clip-path": "url(#pudding-cream-clip)" })
   ]));
   const { cherry, sprinkles } = toppings(seed);
+  const stem = cherryStem(seed).map(point => point.join(" "));
   print.append(layer("sprinkles", sprinkles.map(({ x, y, angle, color }, i) =>
     el("g", { id: `pudding-sprinkle-${i}`, transform: `translate(${x} ${y}) rotate(${angle})` }, [
       path("M-3.6 1 L3.6 1", { fill: "none", stroke: "#786658", "stroke-width": 3.8, opacity: .18, "stroke-linecap": "round" }),
       path("M-3.6 0 L3.6 0", { fill: "none", stroke: color, "stroke-width": 3.3, "stroke-linecap": "round" })
     ])), { "clip-path": "url(#pudding-cream-clip)" }));
   print.append(layer("cherry", [
-    layer("cherry-stem", [path("M23 -39 C57 -78 83 -127 43 -159 C7 -189 -42 -163 -68 -133", {
+    layer("cherry-stem", [path(`M${stem[0]} C${stem.slice(1, 4).join(" ")} C${stem.slice(4).join(" ")}`, {
       fill: "none", stroke: "#cb512d", "stroke-width": 4.2, "stroke-linecap": "round"
     })]),
     layer("cherry-fruit", [

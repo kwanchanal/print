@@ -18,6 +18,18 @@ export const artworks = [
     metaPath: "./artworks/pudding/meta.js"
   },
   {
+    id: "pudding-riso",
+    label: "PUDDING - RISO",
+    artworkPath: "./artworks/pudding-riso/artwork.js",
+    metaPath: "./artworks/pudding-riso/meta.js"
+  },
+  {
+    id: "fruit-roll",
+    label: "Fruit Roll",
+    artworkPath: "./artworks/fruit-roll/artwork.js",
+    metaPath: "./artworks/fruit-roll/meta.js"
+  },
+  {
     id: "butternut",
     label: "Butternut",
     artworkPath: "./artworks/butternut/artwork.js",

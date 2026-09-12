@@ -15,7 +15,7 @@ export async function exportMP4({ count, renderFrame, signal, onProgress }) {
   // H.264 needs even dimensions. Extend the last edge pixel rather than stretch the artwork.
   canvas.width = first.width + first.width % 2;
   canvas.height = first.height + first.height % 2;
-  const config = { width: canvas.width, height: canvas.height, quality: new Quality("high") };
+  const config = { width: canvas.width, height: canvas.height, quality: new Quality({ bitrate: 4000000 }) };
   if (!await canEncodeVideo("avc", config)) {
     throw new DOMException("H.264 MP4 encoding is unavailable in this browser. Try Chrome or Safari.", "NotSupportedError");
   }

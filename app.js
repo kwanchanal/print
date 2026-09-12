@@ -2,6 +2,7 @@ import { artworks } from "./artworks/registry.js";
 import { newSeed } from "./seed.js";
 import { composeOutput, downloadArtwork } from "./artworks/shared/output.js";
 import { mountAnimation } from "./artworks/shared/animation.js";
+import { dropdown } from "./artworks/shared/controls.js";
 
 const select = document.getElementById("artwork-select");
 const options = document.getElementById("artwork-options");
@@ -21,6 +22,8 @@ const initialized = new Set();
 let sourceArtwork = null;
 let previewArtwork = null;
 let animationControls = null;
+let puddingStyle = location.hash.slice(1) === "pudding-riso" || initialParams.get("style") === "riso" ? "riso" : "standard";
+let styleControls = null;
 
 function presentArtwork() {
   if (!sourceArtwork) return;
@@ -103,9 +106,36 @@ function setSelected(id) {
   });
 }
 
+function getArtworkEntry(id) {
+  const collectionId = id === "pudding-riso" ? "pudding" : id;
+  if (collectionId === "pudding" && puddingStyle === "riso") return artworks.find(artwork => artwork.id === "pudding-riso");
+  return artworks.find(artwork => artwork.id === collectionId) || artworks[0];
+}
+
+function syncStyleControls() {
+  if (!styleControls) return;
+  const visible = currentId === "pudding";
+  styleControls.hidden = !visible;
+  if (!visible) return;
+  const toggle = styleControls.querySelector(".style-toggle");
+  const panel = styleControls.querySelector(".style-panel");
+  const checkbox = styleControls.querySelector(".style-checkbox");
+  checkbox.checked = puddingStyle === "riso";
+  panel.hidden = !checkbox.checked;
+  toggle.setAttribute("aria-expanded", String(checkbox.checked));
+  toggle.querySelector("span").textContent = `${checkbox.checked ? "-" : "+"} STYLE`;
+}
+
+function setPuddingStyle(style) {
+  puddingStyle = style;
+  syncStyleControls();
+  loadArtwork("pudding");
+}
+
 async function loadArtwork(id) {
   animationControls?.suspend();
-  const entry = artworks.find((artwork) => artwork.id === id) || artworks[0];
+  const entry = getArtworkEntry(id);
+  const collectionId = entry.id === "pudding-riso" ? "pudding" : entry.id;
   const request = ++renderRequest;
 
   try {
@@ -114,9 +144,9 @@ async function loadArtwork(id) {
       import(entry.artworkPath)
     ]);
     if (request !== renderRequest) return;
-    if (artworkState.collection && artworkState.collection !== entry.id) collectionSeeds.set(artworkState.collection, artworkState.seed);
-    if (artworkState.collection !== entry.id) {
-      artworkState.seed = collectionSeeds.get(entry.id) || (!artworkState.collection ? artworkState.seed : "original");
+    if (artworkState.collection && artworkState.collection !== collectionId) collectionSeeds.set(artworkState.collection, artworkState.seed);
+    if (artworkState.collection !== collectionId) {
+      artworkState.seed = collectionSeeds.get(collectionId) || (!artworkState.collection ? artworkState.seed : "original");
     }
     if (!initialized.has(entry.id)) {
       artworkModule.initialize?.(entry.id === location.hash.slice(1) ? initialParams : new URLSearchParams());
@@ -126,7 +156,7 @@ async function loadArtwork(id) {
     artworkState.seed = artworkModule.resolveSeed?.(artworkState.seed) || artworkState.seed;
     const seed = artworkState.seed;
     activeModule = artworkModule;
-    artworkState.collection = entry.id;
+    artworkState.collection = collectionId;
     artworkState.algorithmVersion = artworkModule.algorithmVersion || "1";
     collectionPresets = artworkModule.presets || [];
     syncPresetMenu();
@@ -139,14 +169,15 @@ async function loadArtwork(id) {
       const controls = document.getElementById("collection-controls");
       controls.replaceChildren();
       artworkModule.mountControls?.(controls, {
-        refresh: () => { if (currentId === entry.id) loadArtwork(entry.id); },
-        setSeed: value => { if (currentId === entry.id) applySeed(value); }
+        refresh: () => { if (currentId === collectionId) loadArtwork(collectionId); },
+        setSeed: value => { if (currentId === collectionId) applySeed(value); }
       });
       mountedId = entry.id; remountControls = false;
     }
 
     setMeta(meta);
-    setSelected(entry.id);
+    setSelected(collectionId);
+    syncStyleControls();
     const startedAt = performance.now();
     calculateOutputDimensions(outputState.selectedRatio);
     stage.replaceChildren();
@@ -166,9 +197,10 @@ async function loadArtwork(id) {
     animationControls?.setContext({ module: artworkModule, state: { ...artworkState }, output: { ...outputState } });
     const url = new URL(location.href);
     url.search = "";
-    url.hash = entry.id;
+    url.hash = collectionId;
     url.searchParams.set("seed", seed);
     url.searchParams.set("version", artworkState.algorithmVersion);
+    if (collectionId === "pudding" && puddingStyle === "riso") url.searchParams.set("style", "riso");
     artworkModule.writeURL?.(url);
     window.history.replaceState(null, "", url);
   } catch (error) {
@@ -249,6 +281,24 @@ function init() {
   const collectionControls = document.createElement("div");
   collectionControls.id = "collection-controls";
   canvasPanel.closest(".control-group").after(collectionControls);
+  styleControls = document.createElement("section");
+  styleControls.id = "style-controls";
+  styleControls.className = "control-group";
+  styleControls.innerHTML = '<button class="section-toggle style-toggle" type="button" aria-expanded="false" aria-controls="style-panel"><span>+ STYLE</span><input class="style-checkbox" type="checkbox" aria-label="Use RISO style"></button><div id="style-panel" class="section-content style-panel" hidden></div>';
+  collectionControls.after(styleControls);
+  const stylePanel = styleControls.querySelector(".style-panel");
+  stylePanel.append(
+    dropdown("Style", [{ value: "riso", label: "RISO" }], "riso", () => setPuddingStyle("riso"))
+  );
+  const styleToggle = styleControls.querySelector(".style-toggle");
+  const styleCheckbox = styleControls.querySelector(".style-checkbox");
+  styleToggle.addEventListener("click", event => {
+    if (event.target === styleCheckbox) return;
+    styleCheckbox.checked = !styleCheckbox.checked;
+    setPuddingStyle(styleCheckbox.checked ? "riso" : "standard");
+  });
+  styleCheckbox.addEventListener("change", () => setPuddingStyle(styleCheckbox.checked ? "riso" : "standard"));
+  syncStyleControls();
   const animationContainer = document.createElement("div");
   collectionControls.after(animationContainer);
   animationControls = mountAnimation(animationContainer, svg => {
@@ -316,7 +366,7 @@ function init() {
   });
 
   options.replaceChildren(
-    ...artworks.map((entry) => {
+    ...artworks.filter(entry => entry.id !== "pudding-riso").map((entry) => {
       const option = document.createElement("li");
       option.dataset.value = entry.id;
       option.role = "option";
@@ -330,7 +380,7 @@ function init() {
     })
   );
 
-  const hashId = window.location.hash.replace("#", "");
+  const hashId = window.location.hash.replace("#", "") === "pudding-riso" ? "pudding" : window.location.hash.replace("#", "");
   const firstId = artworks.some((entry) => entry.id === hashId) ? hashId : artworks[0].id;
   setSelected(firstId);
   select.addEventListener("click", () => {

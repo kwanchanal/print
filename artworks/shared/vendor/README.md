@@ -8,4 +8,9 @@
   Source: https://cdn.jsdelivr.net/npm/lucide-static@0.468.0/icons/
   License: `lucide/LICENSE`.
 
-These assets are served locally; animation and GIF export require no CDN at runtime.
+- `mediabunny.mjs`: Mediabunny 1.56.1, MPL-2.0, unmodified browser bundle.
+  Distribution: https://cdn.jsdelivr.net/npm/mediabunny@1.56.1/dist/bundles/mediabunny.mjs
+  Corresponding source (includes `src/`): https://registry.npmjs.org/mediabunny/-/mediabunny-1.56.1.tgz
+  License: `mediabunny-LICENSE`.
+
+These assets are served locally; animation and GIF/MP4 exports require no CDN at runtime.

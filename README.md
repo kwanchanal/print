@@ -63,8 +63,8 @@ placement across 201 seeds.
 ### Animation
 
 Pudding includes an `ANIMATION` section with Animate Variations, Play/Pause,
-and a 2-20 frame duration slider (default 4.5 seconds). Each frame holds for
-half a second, with a direct cut to the next variation; the sequence loops.
+and a 2-20 second duration slider (default 9 seconds). Each frame holds for
+one second, with a direct cut to the next variation; the sequence loops.
 The first frame uses the selected seed. Subsequent seeds are derived from
 that seed and the frame index, so longer durations preserve the sequence's prefix.
 Turning animation off restores the original still. SVG/PNG downloads capture
@@ -77,7 +77,7 @@ A fixed palette keeps static ink pixels stable across frames. GIF uses up to
 256 colors, so its grain may differ slightly from the SVG/PNG.
 Changing seed, collection, duration, Frame, or Size cancels an active export.
 Playback pauses in background tabs. Animation settings are session-only;
-reloading starts with animation enabled and the default duration.
+reloading starts with animation off and the default duration.
 
 Run `node --test tests/animation.test.mjs` for sequence and duration checks.
 The browser regression script is `tests/browser/animation.cjs`. With Playwright
@@ -88,6 +88,46 @@ timing, looping, pixel stability, repeatability, playback, cancellation, error
 recovery, frame/size, and mobile layout; artifacts go to a temporary directory.
 Other collections may opt in by exporting `animation = true`; their renderer
 must support deterministic variations and produce an opaque SVG for GIF export.
+
+## PUDDING - RISO
+
+Select `PUDDING - RISO` for the same layered pudding illustration in bright
+pink, lemon yellow, coral, blue, sky blue, green, and paper-white spot colors.
+Each main element has its own base color: pink wall, blue table, sky-blue napkin,
+green coupe, yellow custard, golden caramel, ivory cream, and coral cherry. The variant
+reuses Pudding's renderer and seed mapping, then applies flat ink colors and
+fixed paper-colored grain. Identical seeds place the cherry and sprinkles in
+identical positions across both collections. Frame, Size, animation, and all
+four downloads (SVG, PNG, GIF, MP4) are shared; the original Pudding is unchanged.
+
+`DOWNLOAD MP4` creates an H.264 video locally with Mediabunny 1.56.1 and the
+browser's encoder, using the current half-second frame timing, Frame, and Size.
+The file contains one sequence without audio; looping is controlled by the player.
+Unsupported browsers show a message while GIF remains available. Odd dimensions
+are padded by one repeated edge pixel for H.264, so 9:16 exports at 480x854.
+MP4 uses a 4 Mbps target bitrate to preserve fine print grain.
+
+Browser checks: `tests/browser/riso.cjs` (geometry, seeds, frames, SVG/PNG/GIF,
+mobile) and `tests/browser/mp4.cjs` (MP4 decoding, timing, variation, padding,
+cancellation, unsupported encoding). Run with the same Playwright setup above.
+
+## Fruit Roll
+
+`Fruit Roll` is a close-cropped SVG sponge-roll cross-section in natural golden,
+vanilla, kiwi-green, coral, and peach colors. Named groups separate the sponge,
+cream, curl, five fruit pieces, fibers, seeds, and printed grain. This collection
+does not include a RISO color variant.
+
+Seed changes only fruit translations. Fruit types, count, sizes, angles, and
+texture stay fixed. Bounded placement checks keep fruit inside the cream and
+clear of neighboring pieces and the sponge curl. `Original` matches the reference
+arrangement. Animation and SVG/PNG/GIF/MP4 use the existing controls.
+Frame fits the complete roll, including the sponge on the left; Size controls
+zoom, with peach paper filling the remaining canvas.
+
+Run `node --test tests/fruit-roll.test.mjs` for placement checks across 101 seeds.
+`tests/browser/fruit-roll.cjs` checks the seed UI, fixed geometry/texture, all four
+downloads, and desktop/mobile screenshots using the Playwright setup above.
 
 ## Halftone Generator
 
